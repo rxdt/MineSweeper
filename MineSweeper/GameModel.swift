@@ -37,39 +37,72 @@ final class Board: ObservableObject {
     }
     
     // grid is a 1D array, this formula gets the index of a cell
-    private func index(row: Int, column: Int) -> Int { row * width + column}
+    private func getIndexGivenRowColumn(row: Int, column: Int) -> Int { row * width + column}
     
     // Returns true if a row/column is inside the board - ensure don't go off board
     private func isValid(_ row: Int, _ column: Int) -> Bool {
         row >= 0 && row < height && column >= 0 && column < width
     }
     
-    private func neighbors(of row: Int, _ column: Int) -> [(Int, Int)] {
+    // Get each neighbor's row/column
+    private func neighbors(row: Int, column: Int) -> [(Int, Int)] {
         var out: [(Int, Int)] = []
         for drow in -1...1 {
             for dcolumn in -1...1 {
                 if drow == 0 && dcolumn == 0 { continue } // skip the center cell/self
                 let rowNeighbor = row + drow
-                let rowColumn = column + dcolumn
-                if isValid(rowNeighbor, rowColumn) {
-                    out.append((rowNeighbor, rowColumn))
+                let columnNeighbor = column + dcolumn
+                if isValid(rowNeighbor, columnNeighbor) {
+                    out.append((rowNeighbor, columnNeighbor))
                 }
             }
         }
         return out
     }
     
-    // WIP
-    private func desiredMineCount(for density: Double) -> Int {
-        let totalCells = width * height - 1 // no. of cells, -1 for *this* cell
-        let rawMineCount = Double(totalCells) * density
-        let roundedMineCount = Int(rawMineCount.rounded())
-        let maxCellsAllowedToHaveMines: Int = min(roundedMineCount, totalCells) // all but one cell can have a mine
-        return max(1, maxCellsAllowedToHaveMines) // have at least one mine
+    // Places mines on first click
+    private func placeMines(safeRow rowZero: Int, safeColumn columnZero: Int, density: Double = 0.159) {
+        // ensure first clicked cell is never a mine
+        let firstClickedCellIndex = getIndexGivenRowColumn(row: rowZero, column: columnZero)
+        // allowable pool of cells
+        var candidateMines: [Int] = []
+        for idx in 0..<(width * height) {
+            if idx != firstClickedCellIndex {
+                candidateMines.append(idx)
+            }
+        }
+
+        // have at least one mine, and all but one cell can have a mine
+        let desiredMineCount = Int((Double(candidateMines.count) * density).rounded())
+        // never less than 1, and never more than # of candidateMines
+        let mineCount = max(1, min(desiredMineCount, candidateMines.count))
+
+        // randomize candidate indices
+        candidateMines.shuffle()
+        // take first k without duplicates
+        let mineIndices = candidateMines.prefix(mineCount)
+        for i in mineIndices {
+            cells[i].isMine = true
+        }
+        
+        // count how many mines are nearby and set each cell's count
+        for idx in mineIndices {
+            let row = idx / width
+            let column = idx % width
+            // for each mine, bump the # on surrounding non-mine cells
+            for (neighborRow, neighborColumn) in neighbors(row: row, column: column) {
+                // if this neighbor is not a mine...
+                let neighborIndex = getIndexGivenRowColumn(row: neighborRow, column: neighborColumn)
+                // then increment neighbor's adjacent mine count
+                if !cells[neighborIndex].isMine { cells[neighborIndex].adjacent += 1 }
+            }
+        }
+        minesPlaced = true
     }
     
     func reveal(row: Int, column: Int) {
-        let i = index(row: row, column: column)
+        if !minesPlaced { placeMines(safeRow: row, safeColumn: column)}
+        let i = getIndexGivenRowColumn(row: row, column: column)
         guard cells.indices.contains(i) else { return }
         if cells[i].state == .covered {
             cells[i].state = .revealed
@@ -77,7 +110,7 @@ final class Board: ObservableObject {
     }
     
     func toggleFlag(row: Int, column: Int) {
-        let i = index(row: row, column: column)
+        let i = getIndexGivenRowColumn(row: row, column: column)
         guard cells.indices.contains(i) else { return }
         switch cells[i].state {
             case .covered: cells[i].state = .flagged
