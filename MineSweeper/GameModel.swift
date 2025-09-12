@@ -100,18 +100,19 @@ final class Board: ObservableObject {
         minesPlaced = true
     }
     
-    func reveal(row: Int, column: Int) {
+    func revealCell(row: Int, column: Int) {
         if !minesPlaced { placeMines(safeRow: row, safeColumn: column)}
-        let i = getIndexGivenRowColumn(row: row, column: column)
-        guard cells.indices.contains(i) else { return }
-        if cells[i].state == .covered {
-            cells[i].state = .revealed
-        }
+        let idxOfThisCell = getIndexGivenRowColumn(row: row, column: column)
+        guard cells.indices.contains(idxOfThisCell) else { return }
+        guard cells[idxOfThisCell].state == .covered else { return }
+        objectWillChange.send() // publish UI update
+        cells[idxOfThisCell].state = .revealed
     }
     
     func toggleFlag(row: Int, column: Int) {
         let i = getIndexGivenRowColumn(row: row, column: column)
         guard cells.indices.contains(i) else { return }
+        objectWillChange.send() // publish UI update
         switch cells[i].state {
             case .covered: cells[i].state = .flagged
             case .flagged: cells[i].state = .covered

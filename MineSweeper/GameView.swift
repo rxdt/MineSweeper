@@ -21,7 +21,7 @@ struct GameView: View {
             LazyVGrid(columns: columns, spacing: 2) {
                 ForEach(board.cells) { cell in
                     CellView(cell: cell).onTapGesture {
-                        board.reveal(row: cell.row, column: cell.column)
+                        board.revealCell(row: cell.row, column: cell.column)
                     }.contextMenu { // right click to flag (optional)
                         Button(cell.state == .flagged ? "Unflag" : "Flag") {
                             board.toggleFlag(row: cell.row, column: cell.column)
