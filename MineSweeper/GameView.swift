@@ -45,7 +45,7 @@ struct CellView: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.blue)
+                .fill(backgroundColor)
                 .overlay(
                     RoundedRectangle(cornerRadius: 4)
                         .stroke(Color.black.opacity(0.3), lineWidth: 1)
@@ -54,10 +54,14 @@ struct CellView: View {
             case .covered: EmptyView()
             case .flagged: Text("🚩")
             case .revealed:
-                // Placeholder: show coordinates until we compute numbers
-                Text("\(cell.row),\(cell.column)")
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.primary)
+                if cell.isAMine {
+                    Text("💣")
+                } else if cell.adjacentMineCount > 0 {
+                    Text("\(cell.adjacentMineCount)").font(.system(size: 14, weight: .bold))
+                } else {
+                    // adjacent == 0 so show nothing
+                    EmptyView()
+                }
             }
         }
         .aspectRatio(1, contentMode: .fit) // keep squares
