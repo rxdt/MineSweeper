@@ -47,13 +47,13 @@ final class Board: ObservableObject {
     }
     
     // Get each neighbor's row/column
-    private func getNeighbors(row: Int, column: Int) -> [(Int, Int)] {
+    private func getNeighbors(centerRow: Int, centerColumn: Int) -> [(Int, Int)] {
         var neighborsRowsAndColumns: [(Int, Int)] = []
-        for row in -1...1 {
-            for column in -1...1 {
-                if row == 0 && column == 0 { continue } // skip the center cell/self
-                let rowNeighbor = row + row
-                let columnNeighbor = column + column
+        for _row in -1...1 {
+            for _column in -1...1 {
+                if _row == 0 && _column == 0 { continue } // skip the center cell/self
+                let rowNeighbor = centerRow + _row
+                let columnNeighbor = centerColumn + _column
                 if isValid(rowNeighbor, columnNeighbor) {
                     neighborsRowsAndColumns.append((rowNeighbor, columnNeighbor))
                 }
@@ -92,7 +92,7 @@ final class Board: ObservableObject {
             let row = idx / width
             let column = idx % width
             // for each mine, bump the # on surrounding non-mine cells
-            for (neighborRow, neighborColumn) in getNeighbors(row: row, column: column) {
+            for (neighborRow, neighborColumn) in getNeighbors(centerRow: row, centerColumn: column) {
                 // if this neighbor is not a mine...
                 let neighborIndex = getIndexGivenRowColumn(row: neighborRow, column: neighborColumn)
                 // then increment neighbor's adjacent mine count
@@ -161,7 +161,7 @@ final class Board: ObservableObject {
             
             // if a cell is blank and has no mines near it
             if cells[idx].adjacentMineCount == 0 {
-                for (neighborRow, neighborColumn) in getNeighbors(row: row, column: column) {
+                for (neighborRow, neighborColumn) in getNeighbors(centerRow: row, centerColumn: column) {
                     let neighborIdx = getIndexGivenRowColumn(row: neighborRow, column: neighborColumn)
                     if cells.indices.contains(neighborIdx),
                        cells[neighborIdx].state == .covered,
