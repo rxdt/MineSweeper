@@ -5,6 +5,8 @@
 //  Created by Roxana del Toro Lopez on 9/10/25.
 //
 
+#if os(macOS)
+import AppKit
 import SwiftUI
 
 struct GameView: View {
@@ -20,13 +22,18 @@ struct GameView: View {
             Text("MineSweeper").font(.title2).bold()
             LazyVGrid(columns: columns, spacing: 2) {
                 ForEach(board.cells) { cell in
-                    CellView(cell: cell).onTapGesture {
-                        board.revealCell(row: cell.row, column: cell.column)
-                    }.contextMenu { // right click to flag (optional)
-                        Button(cell.state == .flagged ? "Unflag" : "Flag") {
-                            board.toggleFlag(row: cell.row, column: cell.column)
-                        }
-                    }
+                    CellView(cell: cell)
+                        .contentShape(Rectangle()) // make taps easier
+                        .onSingleAndDoubleClick(
+                            single: {
+                                print("single @ (\(cell.row),\(cell.column))")
+                                board.revealCell(row: cell.row, column: cell.column)
+                            },
+                            double: {
+                                print("double @ (\(cell.row),\(cell.column))")
+                                board.toggleFlag(row: cell.row, column: cell.column)
+                            }
+                        )
                 }
             }
             .padding()
@@ -76,4 +83,98 @@ struct CellView: View {
         }
     }
 }
+
+// Copied from online
+// Robust macOS single vs double click using two NSClickGestureRecognizers with a delegate.
+// The single is required to FAIL if the double succeeds, and vice-versa,
+// so only one of them fires per interaction.
+private struct ClickOverlay: NSViewRepresentable {
+    let onSingle: () -> Void
+    let onDouble: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onSingle: onSingle, onDouble: onDouble) }
+
+    func makeNSView(context: Context) -> NSView {
+        let v = NSView()
+        v.wantsLayer = true
+        v.layer?.backgroundColor = NSColor.clear.cgColor
+
+        let single = NSClickGestureRecognizer(target: context.coordinator,
+                                              action: #selector(Coordinator.handleSingle))
+        single.numberOfClicksRequired = 1
+        single.buttonMask = 0x1 // primary button
+        single.delegate = context.coordinator
+
+        let dbl = NSClickGestureRecognizer(target: context.coordinator,
+                                           action: #selector(Coordinator.handleDouble))
+        dbl.numberOfClicksRequired = 2
+        dbl.buttonMask = 0x1 // primary button
+        dbl.delegate = context.coordinator
+
+        context.coordinator.single = single
+        context.coordinator.double = dbl
+
+        // Add both recognizers
+        v.addGestureRecognizer(dbl)
+        v.addGestureRecognizer(single)
+        return v
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    final class Coordinator: NSObject, NSGestureRecognizerDelegate {
+        let onSingle: () -> Void
+        let onDouble: () -> Void
+        weak var single: NSClickGestureRecognizer?
+        weak var double: NSClickGestureRecognizer?
+
+        // We’ll schedule single and cancel it if the system recognizes a double.
+        private var pendingSingle: DispatchWorkItem?
+
+        init(onSingle: @escaping () -> Void, onDouble: @escaping () -> Void) {
+            self.onSingle = onSingle
+            self.onDouble = onDouble
+        }
+
+        // Ensure exclusivity in both directions.
+        func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer,
+                               shouldRequireFailureOf other: NSGestureRecognizer) -> Bool {
+            // single waits to see if double wins
+            return (gestureRecognizer === single && other === double)
+        }
+        func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer,
+                               shouldBeRequiredToFailBy other: NSGestureRecognizer) -> Bool {
+            // double should not be blocked by single
+            return (gestureRecognizer === double && other === single)
+        }
+
+        @objc func handleDouble() {
+            // Cancel any scheduled single and fire double immediately.
+            pendingSingle?.cancel(); pendingSingle = nil
+            onDouble()
+        }
+
+        @objc func handleSingle() {
+            // Delay single by the system interval; if a double arrives, it will cancel this.
+            pendingSingle?.cancel()
+            let work = DispatchWorkItem { [onSingle] in onSingle() }
+            pendingSingle = work
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + NSEvent.doubleClickInterval,
+                execute: work
+            )
+        }
+    }
+}
+
+extension View {
+    /// Attach macOS single/double click handlers that are mutually exclusive and reliable.
+    func onSingleAndDoubleClick(single: @escaping () -> Void,
+                                double: @escaping () -> Void) -> some View {
+        overlay(ClickOverlay(onSingle: single, onDouble: double))
+    }
+}
+#endif
+
+// Copied from online
 
